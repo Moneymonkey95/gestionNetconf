@@ -1,0 +1,262 @@
+#!/bin/expect
+
+# netconf_basic.exp
+# Untitled
+#
+# Created by xxx on 17/05/13.
+# Copyright 2013 Alesanco Ltd. All rights reserved.
+
+# La utilización de las comillas dentro de otras comillas ha de ser escapada
+# <xmlns="urn:ietf:params:xml:ns:netconf:base:1.0"> se ha de utilizar dentro de un set como
+#set xxx "<xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
+
+set timeout 7
+#set username [lindex $argv 0]
+#set password [lindex $argv 1]
+#set hostname [lindex $argv 2]
+
+set username "root"
+set password "ZX..\$56as..2"
+set hostname "localhost"
+
+# colors
+set normal "\033\[0;30m"
+set red "\033\[1;31m"
+set red_n "\033\[0;31m"
+set green_n "\033\[0;32m"
+set yelow "\033\[1;33m"
+set blue "\033\[1;34m"
+set magenta "\033\[1;35m"
+set cyan "\033\[1;36m"
+set white "\033\[1;37m"
+
+
+send_user "${red_n}\n########### ADD ROW ARP ##########${normal}\n${green_n}Direccion IPv4(xxx.xxx.xxx.xxx)\n ${normal}"
+set ip [gets stdin]
+
+send_user "${green_n}Direccion MAC: (xx:xx:xx:xx:xx:xx)\n ${normal}"
+set MAC [gets stdin]
+
+set hello "<hello xmlns:nc=\"urn:ietf:params:xml:ns:netconf:base:1.0\"
+			xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">
+				<capabilities>
+					<capability>urn:ietf:params:netconf:base:1.0</capability>
+				</capabilities>
+			</hello>]]>]]>"
+		
+set close_session "<rpc message-id=\"002\" 
+			xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">
+			<close-session/>
+			</rpc> ]]>]]>"
+
+set edit_arp "<rpc message-id=\"003\"
+		xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">
+			<edit-config>
+				<target>
+					<candidate/>
+				</target>
+				<config>
+				<arp xmlns=\"http://netconfcentral.org/ns/yuma-arp\">
+					<static-arps>
+						<static-arp>			
+							<ip-address>$ip</ip-address>
+							<mac-address>$MAC</mac-address>
+						</static-arp>
+					</static-arps>
+				</arp>
+				</config>
+			</edit-config>
+		</rpc> ]]>]]>"
+
+set lockRunning "<rpc message-id=\"004\"
+		xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">
+			<lock>
+				<target>
+					<running/>
+				</target>
+			</lock>
+		</rpc> ]]>]]>"
+
+set lockCandidate "<rpc message-id=\"005\"
+		xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">
+			<lock>
+				<target>
+					<candidate/>
+				</target>
+			</lock>
+		</rpc> ]]>]]>"
+
+set copy_datastore "<rpc message-id=\"006\"
+			xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">
+			<commit/>
+			</rpc> ]]>]]>"
+
+set unlockCandidate "<rpc message-id=\"007\"
+		xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">
+			<unlock>
+				<target>
+					<candidate/>
+				</target>
+			</unlock>
+		</rpc> ]]>]]>"
+
+set unlockRunning "<rpc message-id=\"008\"
+		xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">
+			<unlock>
+				<target>
+					<running/>
+				</target>
+			</unlock>
+		</rpc> ]]>]]>"
+
+
+			
+
+log_user 0
+
+#if {[llength $argv] == 0} {
+#  send_user "Usage: scriptname username \'password\' hostname\n"
+#  exit 1
+#}
+
+send_user "${red}\n#####\n# NETCONF Server: $hostname\n#####\n${normal}"
+
+#################################################################################################
+# MODULO HELLO (ABRIR SESION)
+#################################################################################################
+#spawn ssh -q -o StrictHostKeyChecking=no $username@$hostname
+
+spawn ssh -s -p830 $username@$hostname netconf
+match_max 10000
+
+
+
+expect {
+  timeout { send_user "\nFailed to get password prompt\n"; exit 1 }
+  eof { send_user "\nSSH failure for $hostname\n"; exit 1 }
+	send_user "Dentro de expect"
+   
+   -re ".*Are.*.*yes.*no.*" {
+	send_user "REGEX match"
+	send "yes\r"
+	
+	exp_continue
+	}
+	-re ".assword:" {
+		# Sending the password
+		send "$password\n"
+		send_user "\nSending password\n" 
+	}
+	
+}
+
+expect {
+  timeout { send_user "\nLogin failed. Password incorrect.\n"; exit 1}
+  "/hello>]]>]]>"
+}
+send_user "\nPassword is correct and connected to NETCONF server\n" 
+send_user "\nNETCONF server says hello\n" 
+send_user "\n###########################################\n"
+send_user "$expect_out(buffer)\n"
+send_user "\n###########################################\n"
+
+
+# Sending hello message
+send_user "\nSENDING HELLO MESSAGE TO THE SERVER\n" 
+send "$hello\n"
+#send_user "$expect_out(buffer)\n" 
+
+expect "</hello>]]>]]>"
+send_user "$expect_out(buffer)\n" 
+send_user "\n###########################################\n"
+
+#################################################################################################
+# MODULO EDITAR TABLA ARP
+#################################################################################################
+if {1==1} {
+
+send_user "\n${red}SENDING INSERT ARP ROW${normal}\n" 
+
+## LOCK_RUNNING
+send_user "\n######################\n" 
+send_user "\n${red}lockRUNNING${normal}\n" 
+send "$lockRunning\n"
+expect {
+  timeout { send_user "\nTimeout.\n"; exit 1}
+  "/rpc-reply>]]>]]>"
+}
+send_user "$expect_out(buffer)\n"
+
+## LOCK_CANDIDATE
+send_user "\n######################\n" 
+send_user "\n${red}lockCANDIDATE${normal}\n" 
+send "$lockCandidate\n"
+expect {
+  timeout { send_user "\nTimeout.\n"; exit 1}
+  "/rpc-reply>]]>]]>"
+}
+send_user "$expect_out(buffer)\n"
+
+## ADDING ROW TO CANDIDATE
+send_user "\n#######################\n" 
+send_user "\n${red}rowPARAMS${normal}\n" 
+send_user "${green_n}VAMOS A INSERTAR UNA NUEVA ENTRADA ESTATICA EN LA TABLA ARP:${normal}"
+
+
+
+send "$edit_arp\n"
+expect {
+  timeout { send_user "\nTimeout.\n"; exit 1}
+  "/rpc-reply>]]>]]>"
+}
+send_user "$expect_out(buffer)\n"
+
+##COPY_DATASTORE
+send_user "\n######################\n" 
+send_user "\n${red}comitt${normal}\n" 
+send "$copy_datastore\n"
+expect {
+  timeout { send_user "\nTimeout.\n"; exit 1}
+  "/rpc-reply>]]>]]>"
+}
+send_user "$expect_out(buffer)\n"
+
+## UNLOCK_RUNNING
+send_user "\n######################\n" 
+send_user "\n${red}UNlockRUNNING${normal}\n" 
+send "$unlockRunning\n"
+expect {
+  timeout { send_user "\nTimeout.\n"; exit 1}
+  "/rpc-reply>]]>]]>"
+}
+send_user "$expect_out(buffer)\n"
+
+## UNLOCK_CANDIDATE
+send_user "\n######################\n" 
+send_user "\n${red}UNlockCANDIDATE${normal}\n" 
+send "$unlockCandidate\n"
+expect {
+  timeout { send_user "\nTimeout.\n"; exit 1}
+  "/rpc-reply>]]>]]>"
+}
+send_user "$expect_out(buffer)\n"
+send_user "\n###########################################\n" 
+}
+
+#################################################################################################
+# CIERRE SESION
+#################################################################################################
+
+send_user "\n${red}CERRAMOS SESION NETCONF${normal}\n"
+
+send "$close_session\n"
+#Este último expect no lo veo necesario porque al mandar el close se cierra la sesión
+expect {
+  timeout { send_user "\nTimeout.\n"; exit 1}
+  "/rpc-reply>]]>]]>"
+}
+
+send_user "$expect_out(buffer)\n"
+
+send_user "\n###############################################\n"
+
